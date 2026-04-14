@@ -1,0 +1,714 @@
+<!DOCTYPE html>
+<html lang="fr" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Melko Energie - Automatisation TFPB</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800&family=Merriweather:wght@400;700&family=Source+Code+Pro:wght@400;500&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Montserrat', 'sans-serif'],
+                        serif: ['Merriweather', 'serif'],
+                        mono: ['Source Code Pro', 'monospace'],
+                    },
+                    colors: {
+                        nature: {
+                            50: '#f8f5f0',
+                            100: '#f0e9e0',
+                            200: '#e0d6c9',
+                            300: '#c8e6c9',
+                            400: '#a5d6a7',
+                            500: '#4caf50',
+                            600: '#388e3c',
+                            700: '#2e7d32',
+                            800: '#1b5e20',
+                            900: '#0a1f0c',
+                        },
+                        bark: {
+                            50: '#f0ebe5',
+                            100: '#d7cfc4',
+                            200: '#6d4c41',
+                            300: '#3e2723',
+                        },
+                        forest: {
+                            card: '#2d3a2e',
+                            input: '#3e4a3d',
+                            bg: '#1c2a1f',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* ── 3D Perspective & Animations ── */
+        .perspective-1000 { perspective: 1000px; }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0) rotateX(0deg); }
+            50% { transform: translateY(-10px) rotateX(2deg); }
+        }
+
+        @keyframes slideUp3D {
+            from { transform: translateY(60px) rotateX(-10deg) scale(0.95); opacity: 0; }
+            to { transform: translateY(0) rotateX(0deg) scale(1); opacity: 1; }
+        }
+
+        @keyframes fadeInScale {
+            from { transform: scale(0.8) translateZ(-50px); opacity: 0; }
+            to { transform: scale(1) translateZ(0); opacity: 1; }
+        }
+
+        @keyframes gradientShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        @keyframes cardAppear {
+            from { transform: translateY(30px) rotateX(-5deg); opacity: 0; }
+            to { transform: translateY(0) rotateX(0); opacity: 1; }
+        }
+
+        @keyframes progressGlow {
+            0%, 100% { box-shadow: 0 0 5px rgba(46, 125, 50, 0.4); }
+            50% { box-shadow: 0 0 20px rgba(46, 125, 50, 0.7); }
+        }
+
+        @keyframes ripple {
+            0% { transform: scale(0); opacity: 0.6; }
+            100% { transform: scale(4); opacity: 0; }
+        }
+
+        @keyframes leafFloat {
+            0% { transform: translateY(100vh) rotate(0deg) scale(1); opacity: 0; }
+            10% { opacity: 0.6; }
+            90% { opacity: 0.6; }
+            100% { transform: translateY(-10vh) rotate(360deg) scale(0.5); opacity: 0; }
+        }
+
+        .animate-float { animation: float 4s ease-in-out infinite; }
+        .animate-slideUp3D { animation: slideUp3D 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        .animate-fadeInScale { animation: fadeInScale 0.6s ease-out forwards; }
+        .animate-gradientShift { background-size: 200% 200%; animation: gradientShift 6s ease infinite; }
+        .animate-cardAppear { animation: cardAppear 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        .animate-progressGlow { animation: progressGlow 2s ease-in-out infinite; }
+
+        /* ── Glass morphism - Light ── */
+        .glass {
+            background: rgba(248, 245, 240, 0.85);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(224, 214, 201, 0.6);
+        }
+        .dark .glass {
+            background: rgba(18, 30, 20, 0.85);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(76, 175, 80, 0.12);
+        }
+
+        .glass-card {
+            background: rgba(255, 255, 255, 0.75);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(224, 214, 201, 0.5);
+            transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .dark .glass-card {
+            background: rgba(25, 40, 28, 0.75);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(76, 175, 80, 0.1);
+        }
+
+        .glass-card:hover {
+            transform: translateY(-4px) rotateX(2deg) scale(1.01);
+            border-color: rgba(46, 125, 50, 0.4);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.08), 0 0 30px rgba(46, 125, 50, 0.1);
+        }
+        .dark .glass-card:hover {
+            border-color: rgba(76, 175, 80, 0.35);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4), 0 0 40px rgba(76, 175, 80, 0.12), inset 0 1px 0 rgba(76, 175, 80, 0.1);
+        }
+
+        /* ── Drop zone ── */
+        .drop-zone {
+            transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            transform-style: preserve-3d;
+        }
+        .drop-zone.dragover {
+            transform: scale(1.03) rotateX(2deg);
+            border-color: #2e7d32 !important;
+            box-shadow: 0 0 50px rgba(46, 125, 50, 0.2), inset 0 0 30px rgba(46, 125, 50, 0.05);
+        }
+        .dark .drop-zone.dragover {
+            border-color: #4caf50 !important;
+            box-shadow: 0 0 60px rgba(76, 175, 80, 0.25), inset 0 0 40px rgba(76, 175, 80, 0.08);
+        }
+
+        /* ── Custom scrollbar ── */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #f0e9e0; }
+        ::-webkit-scrollbar-thumb { background: #2e7d32; border-radius: 3px; }
+        .dark ::-webkit-scrollbar-track { background: #0d1a0f; }
+        .dark ::-webkit-scrollbar-thumb { background: #388e3c; border-radius: 3px; }
+
+        /* ── Particles ── */
+        .particles {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            overflow: hidden;
+            z-index: 0;
+            pointer-events: none;
+        }
+        .particle {
+            position: absolute;
+            border-radius: 50%;
+            background: rgba(46, 125, 50, 0.12);
+            animation: leafFloat linear infinite;
+        }
+        .dark .particle {
+            background: rgba(76, 175, 80, 0.15);
+            box-shadow: 0 0 6px rgba(76, 175, 80, 0.3);
+        }
+
+        /* ── Log console ── */
+        .log-entry {
+            transition: all 0.3s ease;
+            transform-origin: left;
+        }
+        .log-entry:hover {
+            transform: translateX(4px);
+            background: rgba(46, 125, 50, 0.05);
+        }
+        .dark .log-entry:hover {
+            background: rgba(76, 175, 80, 0.08);
+        }
+
+        /* ── Button ripple ── */
+        .btn-ripple { position: relative; overflow: hidden; }
+        .btn-ripple .ripple-effect {
+            position: absolute;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.3);
+            animation: ripple 0.6s ease-out;
+            pointer-events: none;
+        }
+
+        /* ── Stagger delays ── */
+        .stagger-1 { animation-delay: 0.1s; opacity: 0; }
+        .stagger-2 { animation-delay: 0.2s; opacity: 0; }
+        .stagger-3 { animation-delay: 0.3s; opacity: 0; }
+        .stagger-4 { animation-delay: 0.4s; opacity: 0; }
+        .stagger-5 { animation-delay: 0.5s; opacity: 0; }
+
+        /* ── Theme toggle button ── */
+        .theme-toggle {
+            transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .theme-toggle:hover {
+            transform: rotate(30deg) scale(1.1);
+        }
+        .theme-toggle svg {
+            transition: all 0.4s ease;
+        }
+    </style>
+</head>
+<body class="bg-nature-50 dark:bg-[#0d1a0f] text-bark-300 dark:text-bark-50 font-sans min-h-screen overflow-x-hidden transition-colors duration-500">
+
+    <!-- Particles Background -->
+    <div class="particles" id="particles"></div>
+
+    <!-- Main Container -->
+    <div class="relative z-10 min-h-screen">
+
+        <!-- Header -->
+        <header class="glass border-b border-nature-200 dark:border-forest-input sticky top-0 z-50">
+            <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+                <div class="flex items-center gap-4 animate-fadeInScale">
+                    <img src="/static/assets/logo_melko.jpg" alt="Melko Energie" class="h-12 w-12 rounded-xl shadow-lg shadow-nature-700/20 animate-float">
+                    <div>
+                        <h1 class="text-xl font-bold bg-gradient-to-r from-nature-700 to-nature-500 bg-clip-text text-transparent">
+                            Melko Energie
+                        </h1>
+                        <p class="text-xs text-bark-200 dark:text-bark-100 tracking-wider">AUTOMATISATION TFPB</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-3">
+                    <!-- Validate Link -->
+                    <a href="/validation" class="px-4 py-1.5 rounded-xl glass text-xs font-semibold text-nature-700 dark:text-nature-400 hover:scale-105 transition-transform flex items-center gap-1.5" title="Valider les donnees">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        Valider
+                    </a>
+                    <!-- Theme Toggle -->
+                    <button id="themeToggle" onclick="toggleTheme()" class="theme-toggle w-10 h-10 rounded-xl glass flex items-center justify-center cursor-pointer" title="Changer de theme">
+                        <!-- Sun (visible in dark mode) -->
+                        <svg id="iconSun" class="w-5 h-5 text-amber-400 hidden dark:block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/>
+                        </svg>
+                        <!-- Moon (visible in light mode) -->
+                        <svg id="iconMoon" class="w-5 h-5 text-nature-700 block dark:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
+                        </svg>
+                    </button>
+                    <!-- Status Badge -->
+                    <div id="statusBadge" class="px-4 py-1.5 rounded-full text-xs font-semibold glass transition-all duration-500">
+                        <span class="inline-block w-2 h-2 rounded-full bg-bark-200 dark:bg-bark-100 mr-2 animate-pulse"></span>
+                        En attente
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="max-w-7xl mx-auto px-6 py-8 perspective-1000">
+
+            <!-- Hero Section -->
+            <section id="heroSection" class="text-center mb-12 animate-slideUp3D">
+                <h2 class="text-4xl md:text-5xl font-extrabold mb-4 leading-tight font-serif">
+                    <span class="bg-gradient-to-r from-nature-800 via-nature-700 to-nature-500 dark:from-nature-400 dark:via-nature-500 dark:to-nature-300 bg-clip-text text-transparent animate-gradientShift">
+                        Excel vers Dossiers TFPB
+                    </span>
+                </h2>
+                <p class="text-bark-200 dark:text-bark-100 text-lg max-w-2xl mx-auto">
+                    Transformez votre fichier de synthese en courriers et annexes structures,
+                    organises par commune et type de travaux.
+                </p>
+            </section>
+
+            <!-- Upload Section -->
+            <section id="uploadSection" class="mb-10 animate-slideUp3D stagger-2">
+                <div id="dropZone" class="drop-zone glass-card rounded-2xl p-12 text-center cursor-pointer border-2 border-dashed border-nature-200 dark:border-forest-input hover:border-nature-500 dark:hover:border-nature-500 group">
+                    <div class="transform transition-all duration-500 group-hover:scale-105">
+                        <div class="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-nature-300/40 to-nature-500/20 dark:from-nature-600/30 dark:to-nature-500/20 flex items-center justify-center group-hover:shadow-xl group-hover:shadow-nature-700/15 transition-all duration-500">
+                            <svg class="w-10 h-10 text-nature-700 dark:text-nature-500 transition-transform duration-500 group-hover:scale-110 group-hover:-translate-y-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+                            </svg>
+                        </div>
+                        <h3 class="text-xl font-semibold mb-2 text-bark-300 dark:text-bark-50">Deposez votre fichier Excel ici</h3>
+                        <p class="text-bark-200 dark:text-bark-100 text-sm mb-4">ou cliquez pour selectionner</p>
+                        <p class="text-xs text-bark-200/60 dark:text-bark-100/60">Formats acceptes : .xlsx, .xls</p>
+                    </div>
+                    <input type="file" id="fileInput" accept=".xlsx,.xls" class="hidden">
+                </div>
+            </section>
+
+            <!-- File Info & Process Button -->
+            <section id="fileInfo" class="mb-8 hidden">
+                <div class="glass-card rounded-2xl p-6 animate-cardAppear">
+                    <div class="flex items-center justify-between flex-wrap gap-4">
+                        <div class="flex items-center gap-4">
+                            <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-nature-300/50 to-nature-500/30 dark:from-nature-600/30 dark:to-nature-500/20 flex items-center justify-center">
+                                <svg class="w-6 h-6 text-nature-700 dark:text-nature-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                                </svg>
+                            </div>
+                            <div>
+                                <p id="fileName" class="font-semibold text-bark-300 dark:text-bark-50"></p>
+                                <p id="fileSize" class="text-sm text-bark-200 dark:text-bark-100"></p>
+                            </div>
+                        </div>
+                        <button id="processBtn" onclick="processFile()" class="btn-ripple px-8 py-3 rounded-xl bg-gradient-to-r from-nature-700 to-nature-600 hover:from-nature-800 hover:to-nature-700 font-semibold text-white shadow-lg shadow-nature-700/25 hover:shadow-nature-700/40 transition-all duration-300 hover:scale-105 active:scale-95">
+                            Lancer le traitement
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Progress Section -->
+            <section id="progressSection" class="mb-8 hidden">
+                <div class="glass-card rounded-2xl p-6 animate-cardAppear">
+                    <div class="flex items-center gap-3 mb-4">
+                        <div class="w-8 h-8 border-2 border-nature-700 dark:border-nature-500 border-t-transparent rounded-full animate-spin"></div>
+                        <p id="progressText" class="font-semibold text-bark-300 dark:text-bark-50">Traitement en cours...</p>
+                    </div>
+                    <div class="w-full bg-nature-200/50 dark:bg-forest-input/50 rounded-full h-3 overflow-hidden">
+                        <div id="progressBar" class="h-full bg-gradient-to-r from-nature-700 to-nature-500 rounded-full transition-all duration-700 ease-out animate-progressGlow" style="width: 0%"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Results Section -->
+            <section id="resultsSection" class="mb-8 hidden">
+                <div class="flex items-center justify-between mb-6 animate-cardAppear flex-wrap gap-3">
+                    <h3 class="text-2xl font-bold font-serif">
+                        <span class="bg-gradient-to-r from-nature-800 to-nature-600 dark:from-nature-400 dark:to-nature-500 bg-clip-text text-transparent">Resultats</span>
+                    </h3>
+                    <div class="flex items-center gap-3">
+                    <button onclick="resetAll()" class="btn-ripple px-5 py-2.5 rounded-xl glass border border-nature-200 dark:border-forest-input font-semibold text-sm text-bark-300 dark:text-bark-50 hover:scale-105 active:scale-95 transition-all duration-300">
+                        <span class="flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                            </svg>
+                            Reinitialiser
+                        </span>
+                    </button>
+                    <button onclick="downloadAll()" class="btn-ripple px-6 py-2.5 rounded-xl bg-gradient-to-r from-nature-800 to-nature-700 hover:from-nature-900 hover:to-nature-800 font-semibold text-sm text-white shadow-lg shadow-nature-800/20 hover:shadow-nature-800/40 transition-all duration-300 hover:scale-105 active:scale-95">
+                        <span class="flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                            </svg>
+                            Telecharger tout (ZIP)
+                        </span>
+                    </button>
+                    <button onclick="downloadRecap()" class="btn-ripple px-5 py-2.5 rounded-xl bg-gradient-to-r from-nature-600 to-nature-500 hover:from-nature-700 hover:to-nature-600 font-semibold text-sm text-white shadow-lg shadow-nature-600/20 hover:shadow-nature-600/40 transition-all duration-300 hover:scale-105 active:scale-95">
+                        <span class="flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                            </svg>
+                            Recap synthese
+                        </span>
+                    </button>
+                    <button onclick="downloadVerification()" class="btn-ripple px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-700 hover:to-amber-600 font-semibold text-sm text-white shadow-lg shadow-amber-600/20 hover:shadow-amber-600/40 transition-all duration-300 hover:scale-105 active:scale-95">
+                        <span class="flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                            </svg>
+                            Rapport verification
+                        </span>
+                    </button>
+                    </div>
+                </div>
+
+                <!-- Stats Cards -->
+                <div id="statsCards" class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6"></div>
+
+                <!-- Segments Grid -->
+                <div id="segmentsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+            </section>
+
+            <!-- Logs Section -->
+            <section id="logsSection" class="mb-8">
+                <details class="glass-card rounded-2xl overflow-hidden group">
+                    <summary class="px-6 py-4 cursor-pointer flex items-center justify-between hover:bg-nature-700/5 dark:hover:bg-nature-500/5 transition-colors">
+                        <div class="flex items-center gap-3">
+                            <svg class="w-5 h-5 text-bark-200 dark:text-bark-100 transition-transform group-open:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                            </svg>
+                            <span class="font-semibold text-bark-300 dark:text-bark-50">Console de logs</span>
+                        </div>
+                        <span id="logCount" class="text-xs text-bark-200 dark:text-bark-100 bg-nature-200/50 dark:bg-forest-input/50 px-3 py-1 rounded-full">0 entrees</span>
+                    </summary>
+                    <div class="px-6 pb-4">
+                        <div id="logConsole" class="bg-nature-900/90 dark:bg-[#080f09] rounded-xl p-4 max-h-80 overflow-y-auto font-mono text-xs space-y-1 border border-transparent dark:border-nature-500/10"></div>
+                    </div>
+                </details>
+            </section>
+
+        </main>
+
+        <!-- Footer -->
+        <footer class="glass border-t border-nature-200 dark:border-forest-input py-6 text-center text-xs text-bark-200 dark:text-bark-100">
+            <p>Melko Energie Conseil - Automatisation TFPB v1.0</p>
+        </footer>
+    </div>
+
+    <script>
+        // ── State ──
+        let selectedFile = null;
+        let logInterval = null;
+
+        // ── Theme ──
+        function initTheme() {
+            const saved = localStorage.getItem('theme');
+            if (saved === 'dark' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                document.documentElement.classList.add('dark');
+            }
+        }
+        function toggleTheme() {
+            const html = document.documentElement;
+            html.classList.toggle('dark');
+            localStorage.setItem('theme', html.classList.contains('dark') ? 'dark' : 'light');
+        }
+        initTheme();
+
+        // ── Particles ──
+        function createParticles() {
+            const container = document.getElementById('particles');
+            for (let i = 0; i < 30; i++) {
+                const p = document.createElement('div');
+                p.className = 'particle';
+                p.style.left = Math.random() * 100 + '%';
+                p.style.animationDuration = (8 + Math.random() * 15) + 's';
+                p.style.animationDelay = Math.random() * 10 + 's';
+                p.style.width = p.style.height = (2 + Math.random() * 3) + 'px';
+                container.appendChild(p);
+            }
+        }
+        createParticles();
+
+        // ── Ripple effect ──
+        document.querySelectorAll('.btn-ripple').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                const rect = this.getBoundingClientRect();
+                const ripple = document.createElement('span');
+                ripple.className = 'ripple-effect';
+                ripple.style.left = (e.clientX - rect.left) + 'px';
+                ripple.style.top = (e.clientY - rect.top) + 'px';
+                ripple.style.width = ripple.style.height = '10px';
+                this.appendChild(ripple);
+                setTimeout(() => ripple.remove(), 600);
+            });
+        });
+
+        // ── Drop zone ──
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+
+        dropZone.addEventListener('click', () => fileInput.click());
+        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+        });
+        fileInput.addEventListener('change', (e) => { if (e.target.files.length) handleFile(e.target.files[0]); });
+
+        function handleFile(file) {
+            if (!file.name.match(/\.xlsx?$/i)) {
+                showToast('Format invalide. Utilisez un fichier .xlsx ou .xls', 'error');
+                return;
+            }
+            selectedFile = file;
+            document.getElementById('fileName').textContent = file.name;
+            document.getElementById('fileSize').textContent = formatFileSize(file.size);
+            document.getElementById('fileInfo').classList.remove('hidden');
+            document.getElementById('uploadSection').style.display = 'none';
+        }
+
+        // ── Process ──
+        async function processFile() {
+            if (!selectedFile) return;
+
+            const btn = document.getElementById('processBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="flex items-center gap-2"><div class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>Traitement...</span>';
+
+            document.getElementById('progressSection').classList.remove('hidden');
+            document.getElementById('resultsSection').classList.add('hidden');
+
+            startLogPolling();
+            animateProgress(0, 90, 10000);
+
+            const formData = new FormData();
+            formData.append('file', selectedFile);
+
+            try {
+                const resp = await fetch('/api/upload', { method: 'POST', body: formData });
+                const data = await resp.json();
+
+                if (resp.ok) {
+                    animateProgress(90, 100, 500);
+                    setTimeout(() => showResults(data), 600);
+                    updateStatus('done', 'Termine');
+                } else {
+                    showToast(data.detail || 'Erreur de traitement', 'error');
+                    updateStatus('error', 'Erreur');
+                }
+            } catch (err) {
+                showToast('Erreur de connexion au serveur', 'error');
+                updateStatus('error', 'Erreur');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = 'Lancer le traitement';
+                setTimeout(() => stopLogPolling(), 2000);
+            }
+        }
+
+        // ── Results ──
+        function showResults(data) {
+            document.getElementById('progressSection').classList.add('hidden');
+            document.getElementById('resultsSection').classList.remove('hidden');
+
+            const segments = data.segments || [];
+            const totalDeg = segments.reduce((s, seg) => s + (seg.total_degrevement || 0), 0);
+            const totalHT = segments.reduce((s, seg) => s + (seg.total_ht || 0), 0);
+
+            const statsHTML = `
+                <div class="glass-card rounded-xl p-5 animate-cardAppear stagger-1">
+                    <p class="text-sm text-bark-200 dark:text-bark-100 mb-1">Dossiers generes</p>
+                    <p class="text-3xl font-bold bg-gradient-to-r from-nature-800 to-nature-600 dark:from-nature-400 dark:to-nature-500 bg-clip-text text-transparent">${segments.length}</p>
+                </div>
+                <div class="glass-card rounded-xl p-5 animate-cardAppear stagger-2">
+                    <p class="text-sm text-bark-200 dark:text-bark-100 mb-1">Total HT eligible</p>
+                    <p class="text-3xl font-bold bg-gradient-to-r from-nature-700 to-nature-500 dark:from-nature-500 dark:to-nature-300 bg-clip-text text-transparent">${formatMoney(totalHT)}</p>
+                </div>
+                <div class="glass-card rounded-xl p-5 animate-cardAppear stagger-3">
+                    <p class="text-sm text-bark-200 dark:text-bark-100 mb-1">Degrevement total</p>
+                    <p class="text-3xl font-bold bg-gradient-to-r from-nature-800 to-nature-700 dark:from-nature-400 dark:to-nature-600 bg-clip-text text-transparent">${formatMoney(totalDeg)}</p>
+                </div>
+            `;
+            document.getElementById('statsCards').innerHTML = statsHTML;
+
+            let segHTML = '';
+            segments.forEach((seg, i) => {
+                const typeColor = seg.type === 'TEE'
+                    ? 'from-nature-300/40 to-nature-500/20 dark:from-nature-600/30 dark:to-nature-500/20'
+                    : 'from-amber-200/40 to-orange-300/20 dark:from-amber-700/30 dark:to-orange-600/20';
+                const typeLabel = seg.type === 'TEE' ? 'Economies Energie' : 'Travaux PMR';
+                const typeBadgeColor = seg.type === 'TEE'
+                    ? 'bg-nature-700/15 text-nature-800 dark:bg-nature-500/20 dark:text-nature-400'
+                    : 'bg-amber-500/15 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400';
+
+                segHTML += `
+                <div class="glass-card rounded-xl overflow-hidden animate-cardAppear" style="animation-delay: ${0.1 * (i+1)}s; opacity: 0;">
+                    <div class="bg-gradient-to-r ${typeColor} p-4 border-b border-nature-200/50 dark:border-forest-input/50">
+                        <div class="flex items-center justify-between">
+                            <h4 class="font-bold text-lg text-bark-300 dark:text-bark-50">${seg.commune}</h4>
+                            <span class="px-3 py-1 rounded-full text-xs font-bold ${typeBadgeColor}">${seg.type}</span>
+                        </div>
+                        <p class="text-xs text-bark-200 dark:text-bark-100 mt-1">${typeLabel}</p>
+                    </div>
+                    <div class="p-4 space-y-3">
+                        <div class="flex justify-between text-sm">
+                            <span class="text-bark-200 dark:text-bark-100">Lignes</span>
+                            <span class="font-semibold text-bark-300 dark:text-bark-50">${seg.nb_lignes}</span>
+                        </div>
+                        <div class="flex justify-between text-sm">
+                            <span class="text-bark-200 dark:text-bark-100">Operations</span>
+                            <span class="font-semibold text-bark-300 dark:text-bark-50">${seg.nb_operations}</span>
+                        </div>
+                        <div class="flex justify-between text-sm">
+                            <span class="text-bark-200 dark:text-bark-100">Degrevement</span>
+                            <span class="font-bold text-nature-700 dark:text-nature-400">${formatMoney(seg.total_degrevement)}</span>
+                        </div>
+                        <div class="flex gap-2 pt-2">
+                            ${seg.annexe ? `<a href="/api/download/${encodeSegPath(seg)}/annexe.xlsx" class="flex-1 text-center px-3 py-2 rounded-lg bg-nature-200/50 dark:bg-forest-input/50 hover:bg-nature-300/50 dark:hover:bg-forest-input text-xs font-medium text-bark-300 dark:text-bark-50 transition-all duration-300 hover:scale-105">Annexe</a>` : ''}
+                            ${seg.courrier ? `<a href="/api/download/${encodeSegPath(seg)}/courrier.pdf" class="flex-1 text-center px-3 py-2 rounded-lg bg-nature-200/50 dark:bg-forest-input/50 hover:bg-nature-300/50 dark:hover:bg-forest-input text-xs font-medium text-bark-300 dark:text-bark-50 transition-all duration-300 hover:scale-105">Courrier</a>` : ''}
+                        </div>
+                    </div>
+                </div>`;
+            });
+            document.getElementById('segmentsGrid').innerHTML = segHTML;
+        }
+
+        function encodeSegPath(seg) {
+            const commune = seg.commune.replace(/ /g, '_').replace(/\//g, '-').replace(/'/g, '');
+            return `${encodeURIComponent(commune)}/${seg.type}`;
+        }
+
+        // ── Download ──
+        function downloadAll() {
+            window.location.href = '/api/download';
+        }
+
+        function downloadRecap() {
+            window.location.href = '/api/download-recap';
+        }
+
+        function downloadVerification() {
+            window.location.href = '/api/download-verification';
+        }
+
+        // ── Reset ──
+        function resetAll() {
+            selectedFile = null;
+            document.getElementById('fileInput').value = '';
+            document.getElementById('fileInfo').classList.add('hidden');
+            document.getElementById('progressSection').classList.add('hidden');
+            document.getElementById('resultsSection').classList.add('hidden');
+            document.getElementById('uploadSection').style.display = '';
+            document.getElementById('statsCards').innerHTML = '';
+            document.getElementById('segmentsGrid').innerHTML = '';
+            updateStatus('idle', 'En attente');
+            stopLogPolling();
+        }
+
+        // ── Logs ──
+        function startLogPolling() {
+            logInterval = setInterval(fetchLogs, 1000);
+        }
+
+        function stopLogPolling() {
+            if (logInterval) { clearInterval(logInterval); logInterval = null; }
+            fetchLogs();
+        }
+
+        async function fetchLogs() {
+            try {
+                const resp = await fetch('/api/logs');
+                const data = await resp.json();
+                renderLogs(data.logs || []);
+            } catch (e) {}
+        }
+
+        function renderLogs(logs) {
+            const console_el = document.getElementById('logConsole');
+            const count_el = document.getElementById('logCount');
+            count_el.textContent = `${logs.length} entrees`;
+
+            let html = '';
+            logs.forEach(log => {
+                const color = log.level === 'ERROR' ? 'text-red-400'
+                    : log.level === 'WARNING' ? 'text-amber-400'
+                    : log.level === 'INFO' ? 'text-nature-400'
+                    : 'text-gray-500';
+                html += `<div class="log-entry px-2 py-0.5 rounded ${color}">
+                    <span class="text-gray-500">${log.timestamp?.substring(11,19) || ''}</span>
+                    <span class="font-bold">[${log.level}]</span> ${escapeHtml(log.message)}
+                </div>`;
+            });
+            console_el.innerHTML = html;
+            console_el.scrollTop = console_el.scrollHeight;
+        }
+
+        // ── Progress animation ──
+        function animateProgress(from, to, duration) {
+            const bar = document.getElementById('progressBar');
+            const text = document.getElementById('progressText');
+            const start = performance.now();
+
+            function step(now) {
+                const elapsed = now - start;
+                const progress = Math.min(from + (to - from) * (elapsed / duration), to);
+                bar.style.width = progress + '%';
+                text.textContent = `Traitement en cours... ${Math.round(progress)}%`;
+                if (elapsed < duration && progress < to) requestAnimationFrame(step);
+            }
+            requestAnimationFrame(step);
+        }
+
+        // ── Status badge ──
+        function updateStatus(status, text) {
+            const badge = document.getElementById('statusBadge');
+            const colors = {
+                idle: 'bg-bark-200',
+                processing: 'bg-amber-400',
+                done: 'bg-nature-500',
+                error: 'bg-red-500',
+            };
+            badge.innerHTML = `<span class="inline-block w-2 h-2 rounded-full ${colors[status] || colors.idle} mr-2 animate-pulse"></span>${text}`;
+        }
+
+        // ── Utils ──
+        function formatFileSize(bytes) {
+            if (bytes < 1024) return bytes + ' o';
+            if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' Ko';
+            return (bytes / 1048576).toFixed(1) + ' Mo';
+        }
+
+        function formatMoney(n) {
+            if (!n) return '0 €';
+            return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(n);
+        }
+
+        function escapeHtml(s) {
+            const d = document.createElement('div');
+            d.textContent = s;
+            return d.innerHTML;
+        }
+
+        function showToast(msg, type = 'info') {
+            const toast = document.createElement('div');
+            const bgColor = type === 'error' ? 'from-red-600 to-red-800' : 'from-nature-700 to-nature-600';
+            toast.className = `fixed bottom-6 right-6 z-50 px-6 py-3 rounded-xl bg-gradient-to-r ${bgColor} text-white font-medium shadow-2xl animate-slideUp3D`;
+            toast.textContent = msg;
+            document.body.appendChild(toast);
+            setTimeout(() => { toast.style.opacity = '0'; toast.style.transform = 'translateY(20px)'; setTimeout(() => toast.remove(), 300); }, 3000);
+        }
+    </script>
+</body>
+</html>
