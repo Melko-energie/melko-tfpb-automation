@@ -1,82 +1,136 @@
+import os
 from pathlib import Path
 from datetime import datetime
-import locale
 
 from reportlab.lib.pagesizes import A4
-from reportlab.lib.units import mm, cm
-from reportlab.lib.colors import HexColor, black, white
+from reportlab.lib.units import mm
+from reportlab.lib.colors import HexColor, black
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.platypus import (
     SimpleDocTemplate, Paragraph, Spacer, Image, Table, TableStyle,
-    PageBreak, KeepTogether,
+    PageBreak,
 )
 from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_JUSTIFY, TA_RIGHT
-from reportlab.platypus.flowables import HRFlowable
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
 
 from backend.config.constants import MELKO_INFO, LOGO_PATH, ARTICLE_CGI
 from backend.utils.logger import get_logger
 
 log = get_logger()
 
+# ── Register Calibri font (fallback to Helvetica) ──
+FONT = "Helvetica"
+FONT_B = "Helvetica-Bold"
+FONT_I = "Helvetica-Oblique"
+FONT_BI = "Helvetica-BoldOblique"
+
+_fonts_dir = Path(os.environ.get("WINDIR", "C:/Windows")) / "Fonts"
+_calibri_map = {
+    "Calibri": "calibri.ttf",
+    "Calibri-Bold": "calibrib.ttf",
+    "Calibri-Italic": "calibrii.ttf",
+    "Calibri-BoldItalic": "calibriz.ttf",
+}
+_cal_ok = True
+for _name, _file in _calibri_map.items():
+    _p = _fonts_dir / _file
+    if _p.exists():
+        try:
+            pdfmetrics.registerFont(TTFont(_name, str(_p)))
+        except Exception:
+            _cal_ok = False
+            break
+    else:
+        _cal_ok = False
+        break
+
+if _cal_ok:
+    FONT = "Calibri"
+    FONT_B = "Calibri-Bold"
+    FONT_I = "Calibri-Italic"
+    FONT_BI = "Calibri-BoldItalic"
+
 # ── Colors ──
 BLUE_DARK = HexColor("#1F4E79")
-BLUE_ACCENT = HexColor("#2E86C1")
-BLUE_LIGHT = HexColor("#D6EAF8")
+BLUE_ACCENT = HexColor("#2AAAE1")
+BLUE_BAND_START = HexColor("#3CC0F0")
+BLUE_BAND_END = HexColor("#2A8FC7")
 GREY_FOOTER = HexColor("#888888")
 
 
 def _get_styles():
     styles = getSampleStyleSheet()
-
     styles.add(ParagraphStyle(
-        "MelkoTitle", fontName="Helvetica-Bold", fontSize=10,
+        "MelkoTitle", fontName=FONT_B, fontSize=10,
         textColor=BLUE_DARK, leading=14,
     ))
     styles.add(ParagraphStyle(
-        "MelkoBody", fontName="Helvetica", fontSize=9,
-        leading=13, alignment=TA_JUSTIFY, spaceAfter=6,
+        "MelkoBody", fontName=FONT, fontSize=10,
+        leading=14, alignment=TA_JUSTIFY, spaceAfter=6,
     ))
     styles.add(ParagraphStyle(
-        "MelkoBodyBold", fontName="Helvetica-Bold", fontSize=9,
-        leading=13, alignment=TA_JUSTIFY, spaceAfter=6,
+        "MelkoBodyBold", fontName=FONT_B, fontSize=10,
+        leading=14, alignment=TA_JUSTIFY, spaceAfter=6,
     ))
     styles.add(ParagraphStyle(
-        "MelkoH1", fontName="Helvetica-Bold", fontSize=10,
-        textColor=BLUE_DARK, leading=14, spaceAfter=8, spaceBefore=12,
+        "MelkoH1", fontName=FONT_B, fontSize=10,
+        textColor=BLUE_DARK, leading=14, spaceAfter=8, spaceBefore=14,
+        leftIndent=20,
     ))
     styles.add(ParagraphStyle(
-        "MelkoH2", fontName="Helvetica-Bold", fontSize=9,
-        leading=12, spaceAfter=6, spaceBefore=8,
+        "MelkoH2", fontName=FONT_B, fontSize=10,
+        leading=13, spaceAfter=4, spaceBefore=10,
+        leftIndent=10,
     ))
     styles.add(ParagraphStyle(
-        "MelkoSmall", fontName="Helvetica", fontSize=7,
+        "MelkoSmall", fontName=FONT, fontSize=7,
         textColor=GREY_FOOTER, leading=9, alignment=TA_CENTER,
     ))
     styles.add(ParagraphStyle(
-        "MelkoObjet", fontName="Helvetica-Bold", fontSize=9,
-        textColor=BLUE_ACCENT, leading=12, spaceAfter=6,
+        "MelkoObjet", fontName=FONT_B, fontSize=10,
+        textColor=BLUE_ACCENT, leading=13, spaceAfter=6,
     ))
     styles.add(ParagraphStyle(
-        "MelkoBullet", fontName="Helvetica", fontSize=9,
-        leading=12, leftIndent=20, spaceAfter=3,
+        "MelkoBullet", fontName=FONT, fontSize=10,
+        leading=13, leftIndent=30, spaceAfter=3,
+    ))
+    styles.add(ParagraphStyle(
+        "MelkoBulletItalic", fontName=FONT_I, fontSize=10,
+        leading=13, leftIndent=50, spaceAfter=3,
+    ))
+    styles.add(ParagraphStyle(
+        "MelkoSubBullet", fontName=FONT_I, fontSize=10,
+        leading=13, leftIndent=60, spaceAfter=2,
+    ))
+    styles.add(ParagraphStyle(
+        "MelkoQuoteItem", fontName=FONT_I, fontSize=10,
+        leading=13, leftIndent=60, spaceAfter=3,
     ))
     return styles
 
 
 def _format_money(amount: float) -> str:
-    """Format a number as French currency."""
     if amount == 0:
-        return "0 €"
-    formatted = f"{amount:,.2f}".replace(",", " ").replace(".", ",")
-    return f"{formatted} €"
+        return "0 \u20ac"
+    formatted = f"{amount:,.2f}".replace(",", "\u00a0").replace(".", ",")
+    return f"{formatted} \u20ac"
 
 
 def _format_date_fr() -> str:
     days = ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"]
-    months = ["janvier", "février", "mars", "avril", "mai", "juin",
-              "juillet", "août", "septembre", "octobre", "novembre", "décembre"]
+    months = ["janvier", "f\u00e9vrier", "mars", "avril", "mai", "juin",
+              "juillet", "ao\u00fbt", "septembre", "octobre", "novembre", "d\u00e9cembre"]
     now = datetime.now()
-    return f"le {days[now.weekday()]} {now.day} {months[now.month-1]} {now.year}"
+    return f"le {days[now.weekday()]} {now.day} {months[now.month - 1]} {now.year}"
+
+
+def _reverse_name(full_name: str) -> str:
+    """'Amaury Mongongu' -> 'Mongongu Amaury'"""
+    parts = full_name.strip().split()
+    if len(parts) == 2:
+        return f"{parts[1]} {parts[0]}"
+    return full_name
 
 
 def generate_courrier(
@@ -95,317 +149,415 @@ def generate_courrier(
     doc = SimpleDocTemplate(
         str(file_path),
         pagesize=A4,
-        leftMargin=18*mm, rightMargin=18*mm,
-        topMargin=12*mm, bottomMargin=18*mm,
+        leftMargin=18 * mm, rightMargin=18 * mm,
+        topMargin=12 * mm, bottomMargin=18 * mm,
     )
 
     styles = _get_styles()
     story = []
 
-    # ── Logo + Sender/Recipient on same level ──
+    # ── Logo ──
     if LOGO_PATH.exists():
-        logo = Image(str(LOGO_PATH), width=22*mm, height=22*mm)
+        logo = Image(str(LOGO_PATH), width=28 * mm, height=28 * mm)
         logo.hAlign = "LEFT"
         story.append(logo)
-    story.append(Spacer(1, 2*mm))
+    story.append(Spacer(1, 4 * mm))
 
-    # ── Sender / Recipient block ──
+    # ── Header block (sender / recipient) ──
     _add_header_block(story, styles, synthesis, commune)
 
     # ── Date ──
-    story.append(Spacer(1, 5*mm))
-    story.append(Paragraph(f"Fait à Paris, {_format_date_fr()},", styles["MelkoBody"]))
-    story.append(Spacer(1, 2*mm))
+    story.append(Spacer(1, 8 * mm))
+    story.append(Paragraph(f"Fait \u00e0 Paris, {_format_date_fr()},", styles["MelkoBody"]))
+    story.append(Spacer(1, 5 * mm))
 
     # ── Affaire suivie par ──
+    reversed_name = _reverse_name(MELKO_INFO["signataire_nom"])
     story.append(Paragraph(
-        f'<u>Affaire suivie par</u> : {MELKO_INFO["signataire_nom"]}, '
-        f'{MELKO_INFO["signataire_email"]} (demande N°{demande_num})',
+        f'<u>Affaire suivie par</u>\u00a0: {reversed_name}, '
+        f'<a href="mailto:{MELKO_INFO["signataire_email"]}" color="#2AAAE1">'
+        f'{MELKO_INFO["signataire_email"]}</a> (demande N\u00b0{demande_num})',
         styles["MelkoObjet"]
     ))
-    story.append(Spacer(1, 2*mm))
+    story.append(Spacer(1, 2 * mm))
 
     # ── Objet ──
     type_labels = {
-        "TEE": "Travaux d'économie d'énergie dans le cadre d'une rénovation globale",
-        "PMR": "Travaux d'accessibilité et d'adaptation pour personnes à mobilité réduite",
-        "INDIS_TEE": "Travaux indissociablement liés aux travaux d'économie d'énergie (études, diagnostics, maîtrise d'œuvre, travaux induits)",
-        "INDIS_PMR": "Travaux indissociablement liés aux travaux d'accessibilité PMR (études, diagnostics, maîtrise d'œuvre, travaux induits)",
+        "TEE": "Travaux d\u2019\u00e9conomie d\u2019\u00e9nergie dans le cadre d\u2019une r\u00e9novation globale",
+        "PMR": "Travaux d\u2019accessibilit\u00e9 et d\u2019adaptation pour personnes \u00e0 mobilit\u00e9 r\u00e9duite",
+        "INDIS_TEE": "Travaux d\u2019\u00e9conomie d\u2019\u00e9nergie et travaux indissociablement li\u00e9s dans le cadre d\u2019une r\u00e9novation globale",
+        "INDIS_PMR": "Travaux d\u2019accessibilit\u00e9 PMR et travaux indissociablement li\u00e9s dans le cadre d\u2019une r\u00e9novation globale",
     }
     type_label_long = type_labels.get(work_type, type_labels["TEE"])
     nb_ops = synthesis["nb_operations"]
-    code_postal = ""
     avis_str = ", ".join(str(a).strip() for a in synthesis["num_avis"][:1]) if synthesis["num_avis"] else "N/A"
     tfpb_year = "2024"
+    annee_travaux = "2023"
 
     story.append(Paragraph(
-        f'<u>Objet</u> : <b>Réclamation contentieuse en dégrèvement de taxe foncière sur les propriétés bâties '
-        f'- Article {ARTICLE_CGI} du CGI - {type_label_long} - '
-        f'{nb_ops} programmes immobiliers situés à {commune.upper()} '
-        f'– Cotisation {tfpb_year} de l\'avis n°{avis_str}</b>',
+        f'<u>Objet</u>\u00a0: <b>R\u00e9clamation contentieuse en d\u00e9gr\u00e8vement de taxe fonci\u00e8re '
+        f'sur les propri\u00e9t\u00e9s b\u00e2ties - Article {ARTICLE_CGI} du '
+        f'CGI - {type_label_long} - '
+        f'{nb_ops} programmes immobiliers situ\u00e9s \u00e0 {commune.upper()} '
+        f'\u2013 Cotisation {tfpb_year} de l\u2019avis n\u00b0{avis_str}</b>',
         styles["MelkoObjet"]
     ))
-    story.append(Spacer(1, 2*mm))
+    story.append(Spacer(1, 2 * mm))
 
     story.append(Paragraph(
-        "<u>Pièces jointes annexées</u> : <i>Pièces justificatives et copie de l'avis d'imposition</i>",
+        "<u>Pi\u00e8ces jointes annex\u00e9es</u>\u00a0: "
+        "<i>Pi\u00e8ces justificatives et copie de l\u2019avis d\u2019imposition</i>",
         styles["MelkoObjet"]
     ))
-    story.append(Spacer(1, 3*mm))
+    story.append(Spacer(1, 6 * mm))
 
     # ── Salutation ──
     destinataire_nom = _get_destinataire_nom(synthesis)
     story.append(Paragraph(f"{destinataire_nom},", styles["MelkoBody"]))
-    story.append(Spacer(1, 3*mm))
+    story.append(Spacer(1, 5 * mm))
 
     # ── Intro paragraph ──
     story.append(Paragraph(
-        f'Je soussigné, mandataire dûment habilité de {MELKO_INFO["mandant_complet"]}, '
-        f'organisme de logement social visé à l\'article L.411-2 du Code de la Construction et de l\'Habitation '
-        f'agissant au nom et pour le compte de mon mandant, vous présente une réclamation contentieuse en vue '
-        f'de l\'obtention du dégrèvement prévu à l\'article {ARTICLE_CGI} du Code Général des Impôts (CGI).',
+        f'Je soussign\u00e9, mandataire d\u00fbment habilit\u00e9 de {MELKO_INFO["mandant_complet"]}, '
+        f'organisme de logement social vis\u00e9 \u00e0 l\u2019article L.411-2 du Code de la Construction '
+        f'et de l\u2019Habitation agissant au nom et pour le compte de mon mandant, vous pr\u00e9sente '
+        f'une r\u00e9clamation contentieuse en vue de l\u2019obtention du d\u00e9gr\u00e8vement pr\u00e9vu '
+        f'\u00e0 l\u2019article {ARTICLE_CGI} du Code G\u00e9n\u00e9ral des Imp\u00f4ts (CGI).',
         styles["MelkoBody"]
     ))
-    story.append(Spacer(1, 3*mm))
 
-    # ── I. PATRIMOINE CONCERNÉ ──
-    story.append(Paragraph("I. PATRIMOINE CONCERNÉ ET NATURE DES OPÉRATIONS :", styles["MelkoH1"]))
-    story.append(Spacer(1, 2*mm))
+    # ══════════════════════════════════════════════
+    # I. PATRIMOINE CONCERNE
+    # ══════════════════════════════════════════════
+    story.append(Spacer(1, 5 * mm))
+    story.append(Paragraph(
+        "I.\u00a0\u00a0\u00a0\u00a0<u>PATRIMOINE CONCERN\u00c9 ET NATURE DES OP\u00c9RATIONS\u00a0:</u>",
+        styles["MelkoH1"]
+    ))
+    story.append(Spacer(1, 2 * mm))
 
-    annee_travaux = "2023"
     is_indis = work_type.startswith("INDIS_")
 
     if is_indis:
         story.append(Paragraph(
-            f'La SIP D\'HLM a engagé en {annee_travaux} un programme de rénovation '
-            f'portant sur son patrimoine locatif social situé à {commune}. '
-            f'<b>Les dépenses présentées ci-après correspondent aux prestations indissociablement liées</b> '
-            f'aux travaux principaux de ce programme (études préalables, diagnostics, maîtrise d\'œuvre, '
-            f'travaux induits, déconstruction).',
+            f'La SIP D\u2019HLM a engag\u00e9 en {annee_travaux} un programme de r\u00e9novation '
+            f'portant sur son patrimoine locatif social situ\u00e9 \u00e0 {commune}. '
+            f'<b>Les d\u00e9penses pr\u00e9sent\u00e9es ci-apr\u00e8s correspondent aux prestations '
+            f'indissociablement li\u00e9es</b> aux travaux principaux de ce programme '
+            f'(\u00e9tudes pr\u00e9alables, diagnostics, ma\u00eetrise d\u2019\u0153uvre, '
+            f'travaux induits, d\u00e9construction).',
             styles["MelkoBody"]
         ))
     else:
         story.append(Paragraph(
-            f'La SIP D\'HLM a engagé en {annee_travaux} un programme ambitieux de rénovation énergétique '
-            f'portant sur plusieurs ensembles de son patrimoine locatif social situé à {commune}.',
+            f'La SIP D\u2019HLM a engag\u00e9 en {annee_travaux} un programme ambitieux de '
+            f'r\u00e9novation \u00e9nerg\u00e9tique portant sur plusieurs ensembles de son '
+            f'patrimoine locatif social situ\u00e9 \u00e0 {commune}.',
             styles["MelkoBody"]
         ))
+    story.append(Spacer(1, 2 * mm))
 
     story.append(Paragraph(
-        f'<b>Ce programme global concerne précisément {nb_ops} opérations immobilières distinctes</b>, '
-        f'chacune répondant à des enjeux spécifiques de performance énergétique et de mise aux normes, '
-        f'dont la liste exhaustive est la suivante :',
+        f'<b>Ce programme global concerne pr\u00e9cis\u00e9ment {nb_ops} op\u00e9rations '
+        f'immobili\u00e8res distinctes</b>, chacune r\u00e9pondant \u00e0 des enjeux sp\u00e9cifiques '
+        f'de performance \u00e9nerg\u00e9tique et de mise aux normes, dont la liste exhaustive '
+        f'est la suivante\u00a0:',
         styles["MelkoBody"]
     ))
-    story.append(Spacer(1, 3*mm))
+    story.append(Spacer(1, 3 * mm))
 
     # ── Operations detail ──
     for i, (op_id, op_info) in enumerate(synthesis["operations"].items(), 1):
-        adresses_str = " - ".join(op_info["adresses"][:3]) if op_info["adresses"] else "Adresse non spécifiée"
+        adresses_str = " - ".join(op_info["adresses"][:3]) if op_info["adresses"] else "Adresse non sp\u00e9cifi\u00e9e"
         nb_log = op_info.get("nb_logements", "")
         nb_log_str = f" des {nb_log} logements" if nb_log else ""
 
         story.append(Paragraph(
-            f'<b>{i}. Opération {op_id} – {adresses_str} :</b>',
+            f'<b>{i}.\u00a0\u00a0Op\u00e9ration {op_id} \u2013 {adresses_str}\u00a0:</b>',
             styles["MelkoH2"]
         ))
 
         if op_info["montant_ht_etudes"] > 0:
+            story.append(Spacer(1, 2 * mm))
             story.append(Paragraph(
-                f'a. Prestations d\'études préalables de suivi ou d\'expertise pour le marché de réhabilitation{nb_log_str} :',
+                f'<i>a.\u00a0\u00a0Prestations d\u2019\u00e9tudes pr\u00e9alables de suivi ou '
+                f'd\u2019expertise pour le march\u00e9 de r\u00e9habilitation{nb_log_str}\u00a0:</i>',
                 styles["MelkoBullet"]
             ))
             story.append(Paragraph(
-                f'– Montant total HT : <b>{_format_money(op_info["montant_ht_etudes"])}</b>',
-                styles["MelkoBullet"]
+                f'\u2013\u00a0\u00a0<b><i>Montant total HT\u00a0: {_format_money(op_info["montant_ht_etudes"])}</i></b>',
+                styles["MelkoSubBullet"]
             ))
 
         if op_info["montant_ht_travaux"] > 0:
+            sub_letter = "b" if op_info["montant_ht_etudes"] > 0 else "a"
+            story.append(Spacer(1, 2 * mm))
             story.append(Paragraph(
-                f'b. Travaux de rénovation énergétique et travaux induits{nb_log_str} :',
+                f'<i>{sub_letter}.\u00a0\u00a0Travaux de r\u00e9novation \u00e9nerg\u00e9tique '
+                f'et travaux induits dans le cadre du march\u00e9 de r\u00e9habilitation{nb_log_str}\u00a0:</i>',
                 styles["MelkoBullet"]
             ))
             story.append(Paragraph(
-                f'– Montant total HT : <b>{_format_money(op_info["montant_ht_travaux"])}</b>',
-                styles["MelkoBullet"]
+                f'\u2013\u00a0\u00a0<b><i>Montant total HT\u00a0: {_format_money(op_info["montant_ht_travaux"])}</i></b>',
+                styles["MelkoSubBullet"]
             ))
 
-        story.append(Spacer(1, 3*mm))
+        story.append(Spacer(1, 3 * mm))
 
     story.append(Paragraph(
-        f'Ces {nb_ops} programmes, qui représentent un investissement significatif dans la transition '
-        f'énergétique du parc social de la SIP D\'HLM à {commune}, font l\'objet de la présente réclamation.',
+        f'<b>Ces {nb_ops} programmes, qui repr\u00e9sentent un investissement significatif dans '
+        f'la transition \u00e9nerg\u00e9tique du parc social de la SIP D\u2019HLM \u00e0 {commune}</b>, '
+        f'font l\u2019objet de la pr\u00e9sente r\u00e9clamation.',
         styles["MelkoBody"]
     ))
 
-    # ── II. FONDEMENT ──
+    # ══════════════════════════════════════════════
+    # II. FONDEMENT DE LA DEMANDE
+    # ══════════════════════════════════════════════
     story.append(PageBreak())
-    story.append(Paragraph("II. FONDEMENT DE LA DEMANDE ET PRINCIPE D'INDISSOCIABILITÉ :", styles["MelkoH1"]))
-    story.append(Spacer(1, 2*mm))
+    story.append(Paragraph(
+        "II.\u00a0\u00a0\u00a0\u00a0<u>FONDEMENT DE LA DEMANDE ET PRINCIPE D\u2019INDISSOCIABILIT\u00c9\u00a0:</u>",
+        styles["MelkoH1"]
+    ))
+    story.append(Spacer(1, 3 * mm))
 
     story.append(Paragraph(
-        f'<b>Conformément à l\'article {ARTICLE_CGI} du CGI</b>, nous sollicitons le bénéfice du dégrèvement '
-        f'égal au quart des dépenses de travaux de rénovation <b>ayant pour objet de concourir directement '
-        f'à la réalisation d\'économies d\'énergie et de fluides</b>, payées au cours de l\'année {annee_travaux} '
-        f'pour l\'imposition {tfpb_year}.',
+        f'<b>Conform\u00e9ment \u00e0 l\u2019article {ARTICLE_CGI} du CGI</b>, nous sollicitons '
+        f'le b\u00e9n\u00e9fice du d\u00e9gr\u00e8vement \u00e9gal au quart des d\u00e9penses de '
+        f'travaux de r\u00e9novation <b>ayant pour objet de concourir directement \u00e0 la '
+        f'r\u00e9alisation d\u2019\u00e9conomies d\u2019\u00e9nergie et de fluides</b>, pay\u00e9es '
+        f'au cours de l\u2019ann\u00e9e {annee_travaux} pour l\u2019imposition {tfpb_year}.',
         styles["MelkoBody"]
     ))
-    story.append(Spacer(1, 2*mm))
-
-    if is_indis:
-        story.append(Paragraph(
-            '<b>Les dépenses présentées dans le présent dossier correspondent aux prestations '
-            'indissociablement liées aux travaux principaux</b>, au sens du BOI-IF-TFB-50-20-20-30 (§74 et suivants). '
-            'Il s\'agit notamment des prestations d\'études préalables, de diagnostics, de maîtrise d\'œuvre, '
-            'de contrôle technique, d\'OPC, ainsi que des travaux induits par la rénovation (dépose, '
-            'déconstruction, adaptation des réseaux).',
-            styles["MelkoBody"]
-        ))
-        story.append(Spacer(1, 2*mm))
-        story.append(Paragraph(
-            '<b>Le caractère indissociable de ces prestations</b> résulte du fait qu\'elles constituent '
-            'une condition sine qua non de la réalisation des travaux principaux d\'économie d\'énergie. '
-            'Sans ces prestations préalables ou induites, les travaux de rénovation énergétique ne '
-            'pourraient être menés à bien.',
-            styles["MelkoBody"]
-        ))
-        story.append(Spacer(1, 2*mm))
+    story.append(Spacer(1, 3 * mm))
 
     story.append(Paragraph(
-        '<b>À cet égard, il convient de rappeler</b> que le champ des travaux éligibles au dégrèvement est défini '
-        'en référence à ceux ouvrant droit au taux réduit de TVA de 5,5% en application du 1° du 1 du IV de '
-        'l\'article 278 sexies du CGI. <b>En effet, le BOI-IF-TFB-50-20-20-30 précise</b> que sont prises en compte '
-        'les dépenses éligibles au taux réduit de TVA, payées au cours de l\'année précédente.',
+        f'<b>\u00c0 cet \u00e9gard, il convient de rappeler</b> que le champ des travaux \u00e9ligibles '
+        f'au d\u00e9gr\u00e8vement est d\u00e9fini en r\u00e9f\u00e9rence \u00e0 ceux ouvrant droit '
+        f'au taux r\u00e9duit de TVA de 5,5% en application du 1\u00b0 du 1 du IV de l\u2019article '
+        f'278 sexies du CGI. <b>En effet, le BOI-IF-TFB-50-20-20-30 pr\u00e9cise</b> que sont prises '
+        f'en compte les d\u00e9penses \u00e9ligibles au taux r\u00e9duit de TVA, pay\u00e9es au cours '
+        f'de l\u2019ann\u00e9e pr\u00e9c\u00e9dente.',
         styles["MelkoBody"]
     ))
-    story.append(Spacer(1, 2*mm))
+    story.append(Spacer(1, 3 * mm))
+
+    # BOI-TVA-IMM reference
+    story.append(Paragraph(
+        '<b>Or, s\u2019agissant de la d\u00e9finition des travaux \u00e9ligibles</b>, le '
+        'BOI-TVA-IMM-20-10-20-10 apporte les pr\u00e9cisions n\u00e9cessaires.',
+        styles["MelkoBody"]
+    ))
+    story.append(Spacer(1, 3 * mm))
+
+    # §73 citation
+    story.append(Paragraph(
+        '<b>Ainsi, au \u00a773, il est indiqu\u00e9 que</b> \u00ab\u00a0<i>sont soumis au taux '
+        'r\u00e9duit de 5,5% les travaux de r\u00e9novation suivants\u00a0:</i>',
+        styles["MelkoBody"]
+    ))
+    for item in [
+        "les travaux d\u2019installation et de remplacement des \u00e9quipements ou de leurs composants\u00a0;",
+        "la prestation de main d\u2019\u0153uvre concourant \u00e0 la r\u00e9alisation des travaux de r\u00e9novation\u00a0;",
+        "la fourniture d\u2019\u00e9quipement n\u00e9cessaire \u00e0 la r\u00e9novation\u00a0;",
+        "les prestations d\u2019\u00e9tudes pr\u00e9alables, de suivi ou d\u2019expertise (notamment les diagnostics pr\u00e9alables aux travaux, les prestations de contr\u00f4le de la conformit\u00e9 des travaux, etc.).\u00a0\u00bb",
+    ]:
+        story.append(Paragraph(f'-\u00a0\u00a0<i>{item}</i>', styles["MelkoQuoteItem"]))
+    story.append(Spacer(1, 3 * mm))
+
+    # §74 reference
+    story.append(Paragraph(
+        '<b>Par ailleurs, au \u00a774 du m\u00eame BOI</b>, sont express\u00e9ment vis\u00e9s les '
+        'travaux concourant directement aux \u00e9conomies d\u2019\u00e9nergie, tels que '
+        '<b>les \u00e9l\u00e9ments constitutifs de l\u2019enveloppe du b\u00e2timent, les syst\u00e8mes '
+        'de chauffage et d\u2019eau chaude sanitaire, les syst\u00e8mes de ventilation, les syst\u00e8mes '
+        'd\u2019\u00e9clairage performants</b> ou encore <b>les \u00e9quipements utilisant des '
+        '\u00e9nergies renouvelables</b>.',
+        styles["MelkoBody"]
+    ))
+    story.append(Spacer(1, 3 * mm))
 
     # TVA breakdown
     tva_55_ht = synthesis["tva_groups"].get(0.055, {}).get("montant_ht", 0)
     tva_20_ht = synthesis["tva_groups"].get(0.2, {}).get("montant_ht", 0)
 
-    if tva_55_ht > 0:
-        story.append(Paragraph(
-            f'En l\'espèce, les dépenses exposées comprennent d\'isolation thermique et de couverture, '
-            f'directement visés au §74 pour un montant de <b>{_format_money(tva_55_ht)}</b> au taux de TVA réduit de 5,5%.',
-            styles["MelkoBody"]
-        ))
+    story.append(Paragraph(
+        f'<b>En l\u2019esp\u00e8ce, les d\u00e9penses expos\u00e9es</b> s\u2019inscrivent '
+        f'parfaitement dans ce cadre l\u00e9gal et doctrinal. '
+        f'{"<b>D\u2019une part,</b> elles comprennent d\u2019isolation thermique et de couverture, directement vis\u00e9s au \u00a774 pour un montant de <b>" + _format_money(tva_55_ht) + "</b> au taux de TVA r\u00e9duit de 5,5%." if tva_55_ht > 0 else ""}',
+        styles["MelkoBody"]
+    ))
 
     if tva_20_ht > 0:
         story.append(Paragraph(
-            f'D\'autre part, elles incluent les prestations indissociables de diagnostics préalables, d\'études, '
-            f'de maîtrise d\'œuvre, de contrôle technique et d\'OPC, pour un montant de '
-            f'<b>{_format_money(tva_20_ht)}</b> au taux de TVA normal.',
+            f'<b>D\u2019autre part,</b> elles incluent les prestations indissociables de diagnostics '
+            f'pr\u00e9alables, d\u2019\u00e9tudes, de ma\u00eetrise d\u2019\u0153uvre, de contr\u00f4le '
+            f'technique et d\u2019OPC, express\u00e9ment mentionn\u00e9es au \u00a773 comme \u00e9ligibles, '
+            f'pour un montant de <b>{_format_money(tva_20_ht)}</b> au taux de TVA normal.',
             styles["MelkoBody"]
         ))
-    story.append(Spacer(1, 3*mm))
+    story.append(Spacer(1, 3 * mm))
 
+    # Jurisprudence
     story.append(Paragraph(
-        '<b>Cette approche inclusive est confirmée par la jurisprudence administrative</b>, laquelle a reconnu '
-        'à plusieurs reprises le caractère éligible des dépenses préparatoires ou induites.',
+        '<b>Cette approche inclusive est confirm\u00e9e par la jurisprudence administrative</b>, '
+        'laquelle a reconnu \u00e0 plusieurs reprises le caract\u00e8re \u00e9ligible des '
+        'd\u00e9penses pr\u00e9paratoires ou induites.',
         styles["MelkoBody"]
     ))
+    story.append(Spacer(1, 2 * mm))
     story.append(Paragraph(
-        'En particulier, l\'arrêt du <b>Conseil d\'État du 17 juin 2015 (n°382248)</b> a jugé que les frais de '
-        'maîtrise d\'œuvre et d\'études préalables sont déductibles.',
+        '<b>En particulier, l\u2019arr\u00eat du Conseil d\u2019\u00c9tat du 17 juin 2015 '
+        '(n\u00b0382248)</b> a jug\u00e9 que les frais de ma\u00eetrise d\u2019\u0153uvre et '
+        'd\u2019\u00e9tudes pr\u00e9alables sont d\u00e9ductibles d\u00e8s lors qu\u2019ils se '
+        'r\u00e9v\u00e8lent n\u00e9cessaires \u00e0 la bonne ex\u00e9cution des travaux principaux.',
         styles["MelkoBody"]
     ))
+    story.append(Spacer(1, 2 * mm))
     story.append(Paragraph(
-        'De même, les arrêts du <b>2 juillet 2014 (n°368070) et du 23 octobre 2015 (n°381916)</b> ont confirmé '
-        'la prise en compte des paiements partiels et des acomptes.',
+        '<b>De m\u00eame, les arr\u00eats du 2 juillet 2014 (n\u00b0368070) et du 23 octobre 2015 '
+        '(n\u00b0381916)</b> ont confirm\u00e9 la prise en compte des paiements partiels et des '
+        'acomptes dans l\u2019assiette du d\u00e9gr\u00e8vement.',
         styles["MelkoBody"]
     ))
 
-    # ── III. CALCUL ──
-    story.append(Spacer(1, 3*mm))
-    story.append(Paragraph("III. CALCUL DU DÉGRÈVEMENT SOLICITÉ ET DISPOSITIONS PROCÉDURALES :", styles["MelkoH1"]))
-    story.append(Spacer(1, 2*mm))
+    # ══════════════════════════════════════════════
+    # III. CALCUL DU DEGREVEMENT
+    # ══════════════════════════════════════════════
+    story.append(Spacer(1, 5 * mm))
+    story.append(Paragraph(
+        "III.\u00a0\u00a0\u00a0\u00a0<u>CALCUL DU D\u00c9GR\u00c8VEMENT SOLICIT\u00c9 ET DISPOSITIONS PROC\u00c9DURALES\u00a0:</u>",
+        styles["MelkoH1"]
+    ))
+    story.append(Spacer(1, 3 * mm))
 
     story.append(Paragraph(
-        f'<b>Le montant total des dépenses éligibles</b> payées en {annee_travaux} s\'élève à '
-        f'<b>{_format_money(synthesis["total_ht_eligible"])}</b>. '
-        f'Conformément aux dispositions du BOI-IF-TFB-50-20-20-30 (§70), '
-        f'{"aucune subvention n\'a été perçue en " + annee_travaux if synthesis["total_subventions"] == 0 else "les subventions perçues s\'élèvent à " + _format_money(synthesis["total_subventions"])}'
-        f', conduisant à une base nette de dégrèvement de <b>{_format_money(synthesis["base_nette"])}</b>.',
+        f'<b>Le montant total des d\u00e9penses \u00e9ligibles</b> pay\u00e9es en {annee_travaux} '
+        f's\u2019\u00e9l\u00e8ve \u00e0 <b>{_format_money(synthesis["total_ht_eligible"])}</b>. '
+        f'<b>Conform\u00e9ment aux dispositions du BOI-IF-TFB-50-20-20-30 (\u00a770),</b> '
+        f'{"aucune subvention n\u2019a \u00e9t\u00e9 per\u00e7ue en " + annee_travaux if synthesis["total_subventions"] == 0 else "les subventions per\u00e7ues s\u2019\u00e9l\u00e8vent \u00e0 " + _format_money(synthesis["total_subventions"])}'
+        f', conduisant \u00e0 une base nette de d\u00e9gr\u00e8vement de '
+        f'<b>{_format_money(synthesis["base_nette"])}</b>.',
         styles["MelkoBody"]
     ))
-    story.append(Spacer(1, 2*mm))
+    story.append(Spacer(1, 3 * mm))
 
     story.append(Paragraph(
-        f'L\'application du taux de 25% prévu à l\'article {ARTICLE_CGI} du CGI permet donc de solliciter '
-        f'un dégrèvement total de <b>{_format_money(synthesis["total_degrevement"])}</b>, imputable sur les '
-        f'cotisations des {nb_ops} programmes concernés selon la répartition jointe en annexe.',
+        f'<b>L\u2019application du taux de 25%</b> pr\u00e9vu \u00e0 l\u2019article {ARTICLE_CGI} '
+        f'du CGI permet donc de solliciter un d\u00e9gr\u00e8vement total de '
+        f'<b>{_format_money(synthesis["total_degrevement"])}</b>, imputable sur les cotisations des '
+        f'<b>{nb_ops} programmes concern\u00e9s</b> selon la r\u00e9partition jointe en annexe.',
         styles["MelkoBody"]
     ))
-    story.append(Spacer(1, 3*mm))
+    story.append(Spacer(1, 3 * mm))
 
     story.append(Paragraph(
-        'Au regard des dispositions procédurales, la présente réclamation est interjetée dans le délai de '
-        'deux ans prévu à l\'article R*196-2 du Livre des Procédures Fiscales. '
-        'Conformément à l\'article R.197-1 du LPF, nous vous prions de bien vouloir nous notifier '
-        'votre décision dans un délai de six mois.',
+        f'<b>Au regard des dispositions proc\u00e9durales,</b> la pr\u00e9sente r\u00e9clamation est '
+        f'interjet\u00e9e dans le d\u00e9lai de deux ans pr\u00e9vu \u00e0 l\u2019article R*196-2 '
+        f'du Livre des Proc\u00e9dures Fiscales, les paiements \u00e9tant intervenus au cours de '
+        f'l\u2019ann\u00e9e {annee_travaux}. <b>Conform\u00e9ment \u00e0 l\u2019article R.197-1 '
+        f'du LPF</b>, nous vous prions de bien vouloir nous notifier votre d\u00e9cision dans un '
+        f'd\u00e9lai de six mois.',
         styles["MelkoBody"]
     ))
-    story.append(Spacer(1, 3*mm))
+    story.append(Spacer(1, 3 * mm))
 
-    story.append(Paragraph('En vue d\'instruire notre demande, nous vous transmettons un dossier comprenant :', styles["MelkoBody"]))
+    # Pieces jointes
+    story.append(Paragraph(
+        'En vue d\u2019instruire notre demande, nous vous transmettons un dossier comprenant\u00a0:',
+        styles["MelkoBody"]
+    ))
+    pj_style = ParagraphStyle(
+        "MelkoPJ", fontName=FONT_BI, fontSize=10,
+        leading=13, leftIndent=30, spaceAfter=3,
+    )
     for pj in [
-        "L'annexe normalisée récapitulant les dépenses retenues pour le calcul du dégrèvement ;",
-        "Une copie des factures ;",
-        "Une copie des avis de virement valant preuve de paiement ;",
-        "L'avis d'imposition Taxe Foncière 2024.",
+        "L\u2019annexe normalis\u00e9e r\u00e9capitulant les d\u00e9penses retenues pour le calcul du d\u00e9gr\u00e8vement et le d\u00e9tail des travaux consid\u00e9r\u00e9s\u00a0;",
+        "Une copie des factures\u00a0;",
+        "Une copie des avis de virement valant preuve de paiement\u00a0;",
+        "L\u2019avis d\u2019imposition Taxe Fonci\u00e8re {}.".format(tfpb_year),
     ]:
-        story.append(Paragraph(f"• <i>{pj}</i>", styles["MelkoBullet"]))
+        story.append(Paragraph(f'\u2756\u00a0\u00a0<i>{pj}</i>', pj_style))
 
-    story.append(Spacer(1, 5*mm))
+    story.append(Spacer(1, 5 * mm))
 
     # ── Closing ──
     story.append(Paragraph(
-        f'Dans ces conditions, et au vu des éléments fournis, nous vous demandons de bien vouloir accorder '
-        f'le dégrèvement de la somme de <b>{_format_money(synthesis["total_degrevement"])}</b> à '
-        f'<b>{MELKO_INFO["mandant_hlm"]}</b> au titre de la cotisation {tfpb_year} de taxe foncière sur les propriétés bâties.',
+        f'<b>Dans ces conditions, et au vu des \u00e9l\u00e9ments fournis,</b> nous vous demandons '
+        f'de bien vouloir accorder le d\u00e9gr\u00e8vement de la somme de '
+        f'<b>{_format_money(synthesis["total_degrevement"])}</b> \u00e0 '
+        f'<b>{MELKO_INFO["mandant_hlm"]}</b> au titre de la cotisation {tfpb_year} de taxe fonci\u00e8re '
+        f'sur les propri\u00e9t\u00e9s b\u00e2ties.',
         styles["MelkoBody"]
     ))
-    story.append(Spacer(1, 3*mm))
+    story.append(Spacer(1, 3 * mm))
 
     story.append(Paragraph(
-        'Nous restons à votre disposition pour vous apporter tout complément d\'informations nécessaires.',
+        'Nous restons \u00e0 votre disposition pour vous apporter tout compl\u00e9ment '
+        'd\u2019informations n\u00e9cessaires \u00e0 l\u2019instruction de notre r\u00e9clamation.',
         styles["MelkoBody"]
     ))
-    story.append(Paragraph(
-        'Par nécessité de suivi interne, nous vous remercions de bien vouloir nous faire suivre '
-        'par retour de courrier le numéro d\'affaire que vous attribuez à cette demande.',
-        styles["MelkoBody"]
-    ))
-    story.append(Spacer(1, 3*mm))
+    story.append(Spacer(1, 2 * mm))
 
     story.append(Paragraph(
-        f'Nous vous prions de croire, {destinataire_nom}, en l\'expression de nos sincères salutations.',
+        'Par n\u00e9cessit\u00e9 de suivi interne de notre demande, nous vous remercions d\u2019avance '
+        'de bien vouloir nous faire suivre par retour de courrier le num\u00e9ro d\u2019affaire '
+        'que vous attribuez \u00e0 cette demande.',
         styles["MelkoBody"]
     ))
-    story.append(Spacer(1, 5*mm))
+    story.append(Spacer(1, 3 * mm))
+
+    story.append(Paragraph(
+        f'Nous vous remercions par avance pour l\u2019attention que vous porterez \u00e0 notre demande '
+        f'et nous vous prions de croire, {destinataire_nom}, en l\u2019expression de nos sinc\u00e8res '
+        f'salutations.',
+        styles["MelkoBody"]
+    ))
+    story.append(Spacer(1, 8 * mm))
 
     # ── Signature ──
-    story.append(Paragraph(f'<b>{MELKO_INFO["signataire_nom"]}</b>', styles["MelkoBodyBold"]))
-    story.append(Paragraph(f'<b>{MELKO_INFO["signataire_titre"]}</b>', styles["MelkoBody"]))
-    story.append(Paragraph(f'<b>{MELKO_INFO["nom"]}</b>', styles["MelkoBody"]))
+    sig_style_blue = ParagraphStyle(
+        "SigBlue", fontName=FONT_B, fontSize=11,
+        textColor=BLUE_ACCENT, leading=14,
+    )
+    sig_style_title = ParagraphStyle(
+        "SigTitle", fontName=FONT_B, fontSize=10,
+        textColor=BLUE_DARK, leading=13,
+    )
+    sig_style_company = ParagraphStyle(
+        "SigCompany", fontName=FONT_B, fontSize=10,
+        leading=13,
+    )
+    story.append(Paragraph(MELKO_INFO["signataire_nom"], sig_style_blue))
+    story.append(Paragraph(MELKO_INFO["signataire_titre"], sig_style_title))
+    story.append(Paragraph(MELKO_INFO["nom"], sig_style_company))
 
     if LOGO_PATH.exists():
-        story.append(Spacer(1, 3*mm))
-        logo_small = Image(str(LOGO_PATH), width=18*mm, height=18*mm)
+        story.append(Spacer(1, 5 * mm))
+        logo_small = Image(str(LOGO_PATH), width=22 * mm, height=22 * mm)
         logo_small.hAlign = "LEFT"
         story.append(logo_small)
 
-    # ── Build with footer ──
-    doc.build(story, onFirstPage=_add_footer, onLaterPages=_add_footer)
+    # ── Build ──
+    doc.build(story, onFirstPage=_add_footer, onLaterPages=_add_later_pages)
 
     log.info(f"Courrier PDF genere : {file_path}")
     return file_path
 
 
+# ══════════════════════════════════════════════
+# Helper functions
+# ══════════════════════════════════════════════
+
 def _add_header_block(story, styles, synthesis, commune):
     """Add the sender/recipient two-column header."""
-    # Sender (left)
+    sender_style = ParagraphStyle(
+        "sender", fontName=FONT, fontSize=10, leading=13,
+    )
+    recipient_style = ParagraphStyle(
+        "recipient", fontName=FONT, fontSize=10, leading=13, alignment=TA_RIGHT,
+    )
+
     sender_text = (
         f'{MELKO_INFO["nom"]}<br/>'
         f'Pour le compte de {MELKO_INFO["mandant"]}<br/>'
@@ -413,22 +565,16 @@ def _add_header_block(story, styles, synthesis, commune):
         f'{MELKO_INFO["adresse_mandant_ville"]}'
     )
 
-    # Recipient (right)
     cdif_name = synthesis["cdif"][0] if synthesis["cdif"] else "SDIF"
     adresse_cdif = synthesis["adresse_cdif"][0] if synthesis["adresse_cdif"] else ""
-
     recipient_lines = adresse_cdif.replace("\n", "<br/>") if adresse_cdif else cdif_name
 
-    sender_para = Paragraph(sender_text, ParagraphStyle(
-        "sender", fontName="Helvetica", fontSize=9, leading=12,
-    ))
-    recipient_para = Paragraph(recipient_lines, ParagraphStyle(
-        "recipient", fontName="Helvetica", fontSize=9, leading=12, alignment=TA_RIGHT,
-    ))
+    sender_para = Paragraph(sender_text, sender_style)
+    recipient_para = Paragraph(recipient_lines, recipient_style)
 
     header_table = Table(
         [[sender_para, recipient_para]],
-        colWidths=[85*mm, 85*mm],
+        colWidths=[85 * mm, 85 * mm],
     )
     header_table.setStyle(TableStyle([
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
@@ -439,29 +585,44 @@ def _add_header_block(story, styles, synthesis, commune):
 
 
 def _add_footer(canvas, doc):
-    """Add the blue footer with company info on every page."""
+    """Footer on the first page (no top band)."""
+    _draw_footer(canvas)
+
+
+def _add_later_pages(canvas, doc):
+    """Footer + blue top band on pages 2+."""
     canvas.saveState()
     w, h = A4
+    # Blue gradient band at top
+    band_height = 8 * mm
+    canvas.setFillColor(BLUE_ACCENT)
+    canvas.rect(0, h - band_height, w, band_height, stroke=0, fill=1)
+    canvas.restoreState()
+    _draw_footer(canvas)
 
-    # Blue line
+
+def _draw_footer(canvas):
+    """Draw the blue footer with company info."""
+    canvas.saveState()
+    w, _ = A4
+
     canvas.setStrokeColor(BLUE_ACCENT)
     canvas.setLineWidth(1)
-    canvas.line(20*mm, 15*mm, w - 20*mm, 15*mm)
+    canvas.line(20 * mm, 15 * mm, w - 20 * mm, 15 * mm)
 
-    # Footer text
-    canvas.setFont("Helvetica", 6.5)
-    canvas.setFillColor(GREY_FOOTER)
+    canvas.setFont(FONT_B if _cal_ok else "Helvetica-Bold", 6.5)
+    canvas.setFillColor(BLUE_ACCENT)
     footer_text = (
         f'{MELKO_INFO["adresse_ligne1"]} {MELKO_INFO["adresse_ligne2"]} - '
-        f'SIREN : {MELKO_INFO["siren"]} - {MELKO_INFO["rcs"]} - '
-        f'{MELKO_INFO["forme"]} AU CAPITAL DE {MELKO_INFO["capital"]}€'
+        f'SIREN\u00a0: {MELKO_INFO["siren"]} - {MELKO_INFO["rcs"]} - '
+        f'{MELKO_INFO["forme"]} AU CAPITAL DE {MELKO_INFO["capital"]}\u20ac'
     )
     footer_text2 = (
-        f'SIRET : {MELKO_INFO["siret"]} - '
-        f'N° TVA INTRACOMMUNAUTAIRE : {MELKO_INFO["tva_intra"]}'
+        f'SIRET\u00a0: {MELKO_INFO["siret"]} - '
+        f'N\u00b0 TVA INTRACOMMUNAUTAIRE\u00a0: {MELKO_INFO["tva_intra"]}'
     )
-    canvas.drawCentredString(w/2, 11*mm, footer_text)
-    canvas.drawCentredString(w/2, 7.5*mm, footer_text2)
+    canvas.drawCentredString(w / 2, 11 * mm, footer_text)
+    canvas.drawCentredString(w / 2, 7.5 * mm, footer_text2)
 
     canvas.restoreState()
 
@@ -474,5 +635,10 @@ def _get_destinataire_nom(synthesis) -> str:
             parts = addr_str.lower().split("attention de")
             if len(parts) > 1:
                 name = parts[1].strip().split("\n")[0].strip()
-                return f"Monsieur {name.title()}"
+                # Remove leading "monsieur"/"madame" if already present
+                name_upper = name.upper()
+                for prefix in ("MONSIEUR ", "MADAME ", "M. ", "MME "):
+                    if name_upper.startswith(prefix):
+                        return f"{prefix.strip().title()} {name_upper[len(prefix):]}"
+                return f"Monsieur {name_upper}"
     return "Madame, Monsieur"
