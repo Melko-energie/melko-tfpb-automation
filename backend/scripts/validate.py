@@ -5,7 +5,9 @@ Usage API : from backend.scripts.validate import validate_file
 """
 
 import sys
+import re
 import math
+import unicodedata
 from pathlib import Path
 from datetime import datetime
 
@@ -46,6 +48,16 @@ ALL_KNOWN_CLASSIFICATIONS = (
     + EXCLUDED_CLASSIFICATIONS
     + AMBIGUOUS_CLASSIFICATIONS
 )
+
+
+def _normalize_commune_key(s: str) -> str:
+    """Normalize commune name for duplicate detection: uppercase, strip accents, replace hyphens/apostrophes."""
+    s = str(s).strip().upper()
+    s = unicodedata.normalize("NFD", s)
+    s = "".join(c for c in s if unicodedata.category(c) != "Mn")
+    s = s.replace("-", " ").replace("_", " ").replace("'", " ").replace("\u2019", " ")
+    s = re.sub(r"\s+", " ", s).strip()
+    return s
 
 
 def validate_file(file_path: Path) -> dict:
@@ -174,12 +186,12 @@ def _check_communes(df: pd.DataFrame) -> list:
     for idx in df[empty_mask].index:
         results.append(_a(idx + 2, "Commune", "", "Nom de commune", ERROR, CAT_COMMUNE, "Commune manquante"))
 
-    # Doublons de casse
+    # Doublons de casse / accents / tirets
     communes = df["Commune"].dropna().astype(str).str.strip()
     communes_clean = communes[~communes.isin(["", "nan"])]
     upper_map = {}
     for c in communes_clean.unique():
-        key = c.upper()
+        key = _normalize_commune_key(c)
         if key not in upper_map:
             upper_map[key] = []
         upper_map[key].append(c)
