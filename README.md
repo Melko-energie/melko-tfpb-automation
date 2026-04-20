@@ -4,6 +4,38 @@ Automatisation complète de la génération des dossiers de dégrèvement TFPB (
 
 Le système transforme un fichier Excel source en un ensemble structuré de dossiers contenant courriers de dégrèvement (PDF), annexes (Excel) et tableaux croisés dynamiques, organisés par commune et type de travaux.
 
+---
+
+## 🚀 Démarrage rapide — UNE seule commande
+
+Après `git clone`, depuis la racine du projet :
+
+**Windows (PowerShell)**
+```powershell
+.\go.ps1
+```
+
+**Linux / macOS / Git Bash**
+```bash
+bash go.sh
+```
+
+Ça :
+1. crée `.venv` Python à la racine et installe `requirements.txt`,
+2. active le hook git `post-merge` (les futurs `git pull` rejouent l'install tout seuls),
+3. lance le **backend Flask** sur http://localhost:8000 (qui sert aussi le frontend HTML).
+
+### Sous-commandes utiles
+| But | PowerShell | Bash |
+|---|---|---|
+| Tout (install + run) | `.\go.ps1` | `bash go.sh` |
+| Installer seulement | `.\go.ps1 install` | `bash go.sh install` |
+| Lancer le backend | `.\go.ps1 backend` | `bash go.sh backend` |
+
+> Pré-requis : `python` (3.10–3.13), `git` accessibles dans le PATH.
+
+---
+
 ## Fonctionnalités
 
 ### Traitement
