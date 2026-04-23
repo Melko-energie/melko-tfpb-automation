@@ -34,6 +34,19 @@ bash go.sh
 
 > Pré-requis : `python` (3.10–3.13), `git` accessibles dans le PATH.
 
+### 🐳 Alternative : Docker (recommande si probleme d'env)
+
+```bash
+docker compose up --build    # premiere fois
+docker compose up            # relances
+docker compose down          # stoppe
+```
+
+App : http://localhost:8000 (backend Flask sert aussi le frontend HTML).
+Le dossier `output/` reste sur l'hote via bind-mount, hot-reload Flask actif.
+
+> Pré-requis Docker : Docker Desktop ou Docker Engine + Compose v2.
+
 ---
 
 ## Fonctionnalités

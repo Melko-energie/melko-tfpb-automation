@@ -1,0 +1,19 @@
+# melko-tfpb-automation - Flask backend (sert aussi le frontend HTML)
+# Usage : docker compose up --build    (premiere fois)
+#         docker compose up            (relances)
+#         docker compose down          (stoppe)
+#
+# Persistance : tout le repo est bind-mount, donc output/ reste sur l'hote.
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: tfpb-automation
+    ports:
+      - "8000:8000"
+    volumes:
+      # Bind-mount pour hot-reload Flask (debug=True) + persistance output/
+      - .:/app
+    restart: unless-stopped
